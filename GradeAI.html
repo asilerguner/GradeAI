@@ -967,7 +967,10 @@ function renderSheet(name, exam, cls){
           </div>
           <!-- Q body -->
           <div style="padding:11px 13px">
-            ${q.done&&q.note?`<div style="font-size:13px;color:#1c5437;background:rgba(38,113,74,.08);border-left:3px solid var(--grn);padding:6px 10px;border-radius:0 6px 6px 0;line-height:1.55;margin-bottom:10px">${q.note}</div>`:''}
+            ${q.done?`<div style="font-size:13px;color:#1c5437;background:rgba(38,113,74,.08);border:1px solid rgba(22,101,52,.15);border-left:3px solid var(--grn);padding:8px 11px;border-radius:0 7px 7px 0;line-height:1.6;margin-bottom:10px">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--grn);margin-bottom:4px">AI feedback</div>
+              ${q.note||'<span style="color:var(--mut);font-style:italic">No comment returned — enter one manually below</span>'}
+            </div>`:''}
             <!-- Correct answer / per-question criteria -->
             <div style="margin-bottom:8px">
               <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--mut);display:block;margin-bottom:3px">Grading Instructions for AI (optional) — write anything, AI follows exactly</label>
@@ -1121,46 +1124,55 @@ async function sheetGradeOne(dataUrl,i){
     const s=raw.trim();
 
     // 1. Direct parse
-    try{ return JSON.parse(s); }catch(_){}
+    try{
+      const r=JSON.parse(s);
+      if(typeof r.scored !== 'undefined') return r;
+    }catch(_){}
 
     // 2. Strip markdown fences then parse
     const stripped=s.replace(/```json\s*/g,'').replace(/```\s*/g,'').trim();
-    try{ return JSON.parse(stripped); }catch(_){}
+    try{
+      const r=JSON.parse(stripped);
+      if(typeof r.scored !== 'undefined') return r;
+    }catch(_){}
 
-    // 3. Find first {...} block (greedy — handles nested braces)
-    const m=s.match(/\{[^{}]*\}/);
-    if(m){ try{ return JSON.parse(m[0]); }catch(_){} }
+    // 3. Sanitize and parse — replace unescaped newlines inside strings, fix trailing commas
+    try{
+      const clean=stripped
+        .replace(/:\s*"([\s\S]*?)"\s*([,}])/g, (_,v,end)=>`:"${v.replace(/\n/g,' ').replace(/"/g,'\\"')}"${end}`)
+        .replace(/,\s*}/g,'}');
+      const r=JSON.parse(clean);
+      if(typeof r.scored !== 'undefined') return r;
+    }catch(_){}
 
-    // 4. Fix common issues: unescaped quotes, newlines in strings, truncated
-    let fixed=stripped
-      .replace(/\n/g,' ')
-      .replace(/([^\\])"/g, (match,p1)=>p1+'"')  // won't help much but try
-      .replace(/,\s*}/, '}')   // trailing comma
-      .replace(/:\s*([^",{\[\d\-truefalsn][^,}]*)/g, (_,v)=>`:"${v.trim()}"`) // unquoted string values
-    ;
-    try{ return JSON.parse(fixed); }catch(_){}
-
-    // 5. Regex extraction — most reliable fallback
-    const sc = s.match(/"?scored"?\s*:\s*(\d+(?:\.\d+)?)/);
-    const nt = s.match(/"?note"?\s*:\s*"([\s\S]+?)(?:"(?:\s*[,}]|$)|$)/);
+    // 4. Extract scored and note with tolerant regex
+    const sc=s.match(/"?scored"?\s*:\s*(\d+(?:\.\d+)?)/);
+    // Note: capture everything after "note": " up to end of string or closing quote before }
+    const nt=s.match(/"?note"?\s*:\s*"([\s\S]+?)"\s*\}/) ||
+              s.match(/"?note"?\s*:\s*"([\s\S]+?)"\s*$/) ||
+              s.match(/"?note"?\s*:\s*"([\s\S]+)/);
     if(sc){
-      return {
-        scored: Math.round(parseFloat(sc[1])),
-        note: nt ? nt[1].replace(/\\n/g,' ').trim() : ''
-      };
+      let note = nt ? nt[1].replace(/\\n/g,' ').replace(/\\"/g,'"').replace(/"\s*}?\s*$/,'').trim() : '';
+      // If note still empty, try to find any sentence in the raw response
+      if(!note){
+        const sentences=s.replace(/[{}"]/g,' ').replace(/scored\s*:\s*\d+/i,'').trim();
+        note=sentences.length>10 ? sentences.slice(0,300).trim() : '';
+      }
+      return { scored: Math.round(parseFloat(sc[1])), note };
     }
 
-    // 6. Just find any number in the response — last resort
-    const nums = s.match(/\b(\d+)\b/g);
+    // 5. Just find any number — truly last resort
+    const nums=s.match(/\b(\d+)\b/g);
     if(nums){
-      const scored = parseInt(nums[0]);
-      if(scored >= 0 && scored <= q.max){
-        return { scored, note: s.replace(/[{}"\n]/g,' ').slice(0,200).trim() };
+      const scored=parseInt(nums[0]);
+      if(scored>=0 && scored<=q.max){
+        const note=s.replace(/[{}"\n]/g,' ').replace(/scored\s*:\s*\d+/i,'').trim().slice(0,300);
+        return { scored, note };
       }
     }
 
-    // 7. Give 0 and log the raw response as the note
-    return { scored: 0, note: 'AI response unclear: ' + s.slice(0,150) };
+    // 6. Never fail — return raw text as note
+    return { scored:0, note:'Could not parse score. Raw response: '+s.slice(0,200) };
   }
 
   const ac=new AbortController();
