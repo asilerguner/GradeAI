@@ -736,13 +736,14 @@ function renderCls(){
           <input id="ns_${c.id}" placeholder="Student name…" style="flex:1;min-width:120px;font-size:12px;padding:6px 10px" onkeydown="if(event.key==='Enter')addStu(${c.id})"/>
           <button class="btn bp bsm" onclick="addStu(${c.id})">+ Add</button>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px" id="sl_${c.id}">
+        <div style="display:flex;flex-direction:column;gap:5px" id="sl_${c.id}">
           ${stus.length ? stus.map((s,i)=>{
             const sObj=typeof s==='object'?s:{name:s,no:''};
-            return`<div style="display:flex;align-items:center;gap:5px;background:#fff;border:1px solid var(--bor);border-radius:7px;padding:4px 9px;font-size:12px">
-              ${sObj.no?`<span style="background:var(--acl);color:var(--acc);border-radius:4px;padding:1px 5px;font-size:10px;font-weight:700">${sObj.no}</span>`:''}
-              👤 ${sObj.name}
-              <button onclick="removeStu(${c.id},${i})" style="background:none;border:none;color:var(--mut);cursor:pointer;font-size:12px;line-height:1;margin-left:3px">✕</button>
+            return`<div style="display:flex;align-items:center;gap:6px;background:var(--sur);border:1px solid var(--bor);border-radius:8px;padding:5px 10px;font-size:12px" id="sr_${c.id}_${i}">
+              ${sObj.no?`<span style="background:var(--acl);color:var(--acc);border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;flex-shrink:0">${sObj.no}</span>`:'<span style="width:6px"></span>'}
+              <span style="flex:1;font-weight:500">👤 ${sObj.name}</span>
+              <button onclick="editStuInline(${c.id},${i})" style="background:none;border:1px solid var(--bor);border-radius:5px;padding:2px 7px;font-size:11px;cursor:pointer;color:var(--mut)">✏️ Edit</button>
+              <button onclick="removeStu(${c.id},${i})" style="background:none;border:none;color:var(--mut);cursor:pointer;font-size:13px;line-height:1">✕</button>
             </div>`;}).join('')
           : '<span style="font-size:12px;color:var(--mut)">No students yet — add above</span>'}
         </div>
@@ -774,6 +775,30 @@ function addStu(clsId){
 function removeStu(clsId,idx){
   const c=DB.classes.find(x=>x.id===clsId); if(!c||!c.students)return;
   c.students.splice(idx,1); saveDB(); renderCls();
+}
+
+function editStuInline(clsId,idx){
+  const c=DB.classes.find(x=>x.id===clsId); if(!c)return;
+  const s=c.students[idx];
+  const sObj=typeof s==='object'?s:{name:s,no:''};
+  const row=document.getElementById(`sr_${clsId}_${idx}`);
+  if(!row)return;
+  row.innerHTML=`
+    <input id="ei_no_${clsId}_${idx}" value="${sObj.no}" placeholder="No." style="width:56px;font-size:12px;padding:4px 6px" type="text"/>
+    <input id="ei_nm_${clsId}_${idx}" value="${sObj.name}" placeholder="Name…" style="flex:1;font-size:12px;padding:4px 8px" onkeydown="if(event.key==='Enter')saveStuInline(${clsId},${idx})"/>
+    <button class="btn bp bsm" onclick="saveStuInline(${clsId},${idx})">✓ Save</button>
+    <button onclick="renderCls()" style="background:none;border:none;cursor:pointer;color:var(--mut);font-size:13px">✕</button>`;
+  document.getElementById(`ei_nm_${clsId}_${idx}`)?.focus();
+}
+
+function saveStuInline(clsId,idx){
+  const c=DB.classes.find(x=>x.id===clsId); if(!c)return;
+  const name=document.getElementById(`ei_nm_${clsId}_${idx}`)?.value.trim();
+  const no=document.getElementById(`ei_no_${clsId}_${idx}`)?.value.trim()||'';
+  if(!name)return toast('⚠️ Name cannot be empty');
+  c.students[idx]=no?{name,no}:name;
+  saveDB(); renderCls();
+  toast(`✅ Updated`);
 }
 
 // ═══════════════════════════════════════════════════════════
