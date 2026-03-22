@@ -203,10 +203,10 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{-webkit-appear
     </div>
   </div>
   <div class="ntabs">
-    <button class="ntab on" data-page="exams">📝 Exams <span class="tbadge" id="be">0</span></button>
-    <button class="ntab" data-page="classes">🏫 Classes <span class="tbadge" id="bc">0</span></button>
-    <button class="ntab" data-page="grade">✦ Grade</button>
-    <button class="ntab" data-page="results">📊 Results <span class="tbadge" id="br">0</span></button>
+    <button class="ntab on" data-page="exams"   onclick="goPage('exams')">📝 Exams <span class="tbadge" id="be">0</span></button>
+    <button class="ntab" data-page="classes"  onclick="goPage('classes')">🏫 Classes <span class="tbadge" id="bc">0</span></button>
+    <button class="ntab" data-page="grade"    onclick="goPage('grade')">✦ Grade</button>
+    <button class="ntab" data-page="results"  onclick="goPage('results')">📊 Results <span class="tbadge" id="br">0</span></button>
   </div>
   <div class="nright">
     <button class="ndbtn ndbtn-s" onclick="exportJSON()" title="Save to file (overwrites same file each time)">💾 Save</button>
@@ -466,15 +466,14 @@ function updateDBBar(){
 function goPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('on'));
-  document.getElementById('page-'+id).classList.add('on');
+  const page=document.getElementById('page-'+id);
+  if(!page)return;
+  page.classList.add('on');
   document.querySelector(`.ntab[data-page="${id}"]`)?.classList.add('on');
   if(id==='grade')  fillGradeDrops();
   if(id==='results') renderResults();
   updateDBBar();
 }
-document.querySelectorAll('.ntab').forEach(btn=>{
-  btn.addEventListener('click', ()=>goPage(btn.dataset.page));
-});
 
 // ═══════════════════════════════════════════════════════════
 // JSON SAVE / LOAD
@@ -532,15 +531,20 @@ function importJSON(e){
   r.onload=ev=>{
     try{
       const d=JSON.parse(ev.target.result);
-      if(!d.exams||!d.classes||!d.results)throw new Error('Invalid file');
-      if(!confirm(`Import from ${d.exportedAt?new Date(d.exportedAt).toLocaleString():'?'}?\nWill merge (no duplicate IDs).`))return;
+      if(!d.exams||!d.classes||!d.results)throw new Error('Invalid file — missing exams, classes or results');
+      if(!confirm(`Import ${d.exams.length} exams, ${d.classes.length} classes, ${d.results.length} results from ${d.exportedAt?new Date(d.exportedAt).toLocaleString():'?'}?\n\nExisting data will be merged (no duplicates).`))return;
       const merge=(a,b)=>{const ids=new Set(a.map(x=>x.id));return[...a,...b.filter(x=>!ids.has(x.id))];};
       DB.exams   = merge(DB.exams,  d.exams);
       DB.classes = merge(DB.classes,d.classes);
       DB.results = merge(DB.results,d.results);
-      saveDB(); renderAll();
+      saveDB();
+      renderExams();
+      renderCls();
+      renderResults();
+      fillGradeDrops();
+      updateDBBar();
       toast(`✅ Imported: ${d.exams.length} exams, ${d.classes.length} classes, ${d.results.length} results`);
-    }catch(err){toast('❌ Import failed: '+err.message);}
+    }catch(err){ toast('❌ Import failed: '+err.message); }
     e.target.value='';
   };
   r.readAsText(file);
@@ -644,11 +648,14 @@ function editExam(id){
   document.querySelector('#page-exams .card').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function cancelExamEdit(){
-  document.getElementById('editExamId').value='';
-  document.getElementById('examFormTitle').textContent='New Exam';
-  document.getElementById('examSaveBtn').textContent='💾 Save Exam';
-  document.getElementById('examCancelBtn').style.display='none';
-  ['eName','thEmin','thA','thB','thC','thD','thE','eCriteria'].forEach(id=>document.getElementById(id).value='');
+  const editBtn=document.getElementById('examCancelBtn');
+  const titleEl=document.getElementById('examFormTitle');
+  const saveBtn=document.getElementById('examSaveBtn');
+  if(editBtn) editBtn.style.display='none';
+  if(titleEl) titleEl.textContent='New Exam';
+  if(saveBtn) saveBtn.textContent='💾 Save Exam';
+  const editId=document.getElementById('editExamId'); if(editId) editId.value='';
+  ['eName','thEmin','thA','thB','thC','thD','thE','eCriteria'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';});
   document.getElementById('eDate').value=new Date().toISOString().slice(0,10);
   document.getElementById('thHint').textContent='Enter E minimum → thresholds auto-calculated. All values editable.';
   qs=[]; addQ(); addQ(); addQ();
@@ -868,14 +875,14 @@ function openSheet(name){
   if(existing){
     sheetState=exam.questions.map(q=>{
       const eq=existing.questionScores.find(s=>s.num===q.num)||{scored:0,note:''};
-      return{num:q.num,desc:q.desc,max:q.max,scored:eq.scored,note:eq.note,done:true};
+      return{num:q.num,desc:q.desc,max:q.max,scored:eq.scored,note:eq.note,answer:eq.answer||'',done:true};
     });
     sheetState._comment     = existing.teacherComment||'';
     sheetState._strengths   = existing.strengths||[];
     sheetState._improvements= existing.improvements||[];
     sheetState._criteria    = exam.criteria||'';
   } else {
-    sheetState=exam.questions.map(q=>({num:q.num,desc:q.desc,max:q.max,scored:null,note:'',done:false}));
+    sheetState=exam.questions.map(q=>({num:q.num,desc:q.desc,max:q.max,scored:null,note:'',answer:'',done:false}));
     sheetState._comment=''; sheetState._strengths=[]; sheetState._improvements=[];
     sheetState._criteria=exam.criteria||'';
   }
@@ -936,6 +943,13 @@ function renderSheet(name, exam, cls){
           <!-- Q body -->
           <div style="padding:11px 13px">
             ${q.done&&q.note?`<div style="font-size:13px;color:#1c5437;background:rgba(38,113,74,.08);border-left:3px solid var(--grn);padding:6px 10px;border-radius:0 6px 6px 0;line-height:1.55;margin-bottom:10px">${q.note}</div>`:''}
+            <!-- Correct answer / per-question criteria -->
+            <div style="margin-bottom:8px">
+              <label style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--mut);display:block;margin-bottom:3px">Grading Instructions for AI (optional) — write anything, AI follows exactly</label>
+              <textarea id="ans_${i}" placeholder="Write any grading instruction — AI will follow it exactly. Examples:&#10;• The correct answer is 1. Give full marks if the final answer is 1, otherwise 0.&#10;• Award 10/10 for correct formula, 5/10 for correct method wrong answer, 0 for blank.&#10;• Full marks only if all three causes are listed."
+                style="font-size:12px;padding:6px 10px;min-height:52px;resize:vertical;color:var(--txt);border-color:${q.answer?'var(--gld)':'var(--bor)'}"
+                oninput="sheetState[${i}].answer=this.value">${(q.answer||'').replace(/</g,'&lt;')}</textarea>
+            </div>
             <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
               <!-- Score + Note inputs -->
               <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
@@ -1015,6 +1029,7 @@ function sheetPhoto(inp,i){
           <div style="font-weight:600"><span class="spinner" style="border-top-color:var(--acc);border-color:var(--acl)"></span> <span id="qstat_lbl_${i}">Sending to AI…</span></div>
           <div style="color:var(--mut);margin-top:2px" id="qstat_sub_${i}">Reading handwriting and evaluating the answer</div>
         </div>
+        <button id="qstat_cancel_${i}" style="background:var(--rdl);border:1px solid #f0c8c8;color:var(--red);border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer;flex-shrink:0;font-weight:600">✕ Cancel</button>
       </div>`;
     if(btn) btn.innerHTML='<span class="spinner"></span> Grading…';
     await sheetGradeOne(compressed,i);
@@ -1047,70 +1062,112 @@ async function sheetGradeOne(dataUrl,i){
     if(l)l.textContent=lbl; if(s)s.textContent=sub||'';
   }
 
-  // Countdown timer shown while waiting
+  // Elapsed timer — informational only, no auto-abort
   let elapsed=0;
-  const TIMEOUT=90; // seconds before giving up
   const timer=setInterval(()=>{
     elapsed++;
-    const left=TIMEOUT-elapsed;
-    setStatus(`Analyzing… (${elapsed}s)`, elapsed<15?'Reading handwriting and evaluating…':elapsed<40?'Model is thinking, please wait…':'Still working — large images take longer on local models');
-    if(elapsed>=TIMEOUT){
-      clearInterval(timer);
-      // Abort handled below by AbortController
-    }
+    const msg = elapsed<20  ? 'Reading handwriting and evaluating…'
+              : elapsed<60  ? 'Model is thinking… (local models can take 1-3 min)'
+              : elapsed<120 ? 'Still working — model may be loading for the first time'
+              : `Working… ${Math.floor(elapsed/60)}m ${elapsed%60}s — press ✕ to cancel`;
+    setStatus(`Analyzing… (${elapsed}s)`, msg);
   },1000);
 
   const criteria=sheetState._criteria||'';
-  const prompt=`You are an experienced, fair teacher grading a student's handwritten exam answer.
+  const qAnswer=q.answer||(document.getElementById('ans_'+i)?.value.trim()||'');
 
-Question Q${q.num}${q.desc?' — '+q.desc:''}: maximum ${q.max} points.
-${criteria?`\nGrading criteria for this exam:\n${criteria}\n`:''}
-
-SCORING RULES:
-- Give full marks (${q.max}) if the answer is fully correct.
-- Give partial credit proportionally for partially correct answers. For example, if the student gets the right answer but uses a slightly wrong method, give 60-80% of marks.
-- Give 0 only if the answer is completely wrong or blank.
-- Do NOT be overly strict. A small error in method with a correct result should still earn most of the marks.
-- The score MUST be a whole number between 0 and ${q.max}.
-
-Look carefully at the student's answer. Then:
-1. Determine a FAIR score (0 to ${q.max}) using the partial credit rules above.
-2. Write 2-3 sentences explaining your score — what was correct, what was wrong or missing, and one specific suggestion.
-
-Respond ONLY with valid JSON, no markdown:
-{"scored":<integer 0 to ${q.max}>,"note":"your 2-3 sentence reasoning here"}`;
+  const prompt = qAnswer
+    ? ("You are grading a student's handwritten exam answer. Follow the instructions below EXACTLY.\n\n"
+      + "Question Q" + q.num + (q.desc ? " \u2014 " + q.desc : "") + ": maximum " + q.max + " points.\n\n"
+      + "GRADING INSTRUCTIONS (follow these precisely, they override everything else):\n"
+      + qAnswer + "\n\n"
+      + "Look at the student's answer in the image. Apply the instructions above exactly.\n"
+      + "Write 1-2 sentences: what you saw and why you gave that score.\n\n"
+      + 'Respond with ONLY this JSON: {"scored":<integer 0-' + q.max + '>,"note":"<1-2 sentences>"}')
+    : ("You are grading a student's handwritten exam answer.\n\n"
+      + "Question Q" + q.num + (q.desc ? " \u2014 " + q.desc : "") + ": maximum " + q.max + " points.\n"
+      + (criteria ? "\nGrading criteria:\n" + criteria + "\n" : "")
+      + "\nGive full marks if correct, partial credit if partially correct, 0 if blank/wrong. Do not be overly strict.\n"
+      + "Write 1-2 sentences explaining the score.\n\n"
+      + 'Respond with ONLY this JSON: {"scored":<integer 0-' + q.max + '>,"note":"<1-2 sentences>"}');
 
   function extractJSON(raw){
-    try{ return JSON.parse(raw.trim()); }catch(_){}
-    const m=raw.match(/\{[\s\S]*?\}/);
+    if(!raw||!raw.trim()) return {scored:0, note:'No response from model'};
+    const s=raw.trim();
+
+    // 1. Direct parse
+    try{ return JSON.parse(s); }catch(_){}
+
+    // 2. Strip markdown fences then parse
+    const stripped=s.replace(/```json\s*/g,'').replace(/```\s*/g,'').trim();
+    try{ return JSON.parse(stripped); }catch(_){}
+
+    // 3. Find first {...} block (greedy — handles nested braces)
+    const m=s.match(/\{[^{}]*\}/);
     if(m){ try{ return JSON.parse(m[0]); }catch(_){} }
-    const sc=raw.match(/"scored"\s*:\s*(\d+)/);
-    const nt=raw.match(/"note"\s*:\s*"([\s\S]+?)(?:"|$)/);
-    if(sc){ return { scored: parseInt(sc[1]), note: nt ? nt[1] : '' }; }
-    throw new Error('Could not parse AI response');
+
+    // 4. Fix common issues: unescaped quotes, newlines in strings, truncated
+    let fixed=stripped
+      .replace(/\n/g,' ')
+      .replace(/([^\\])"/g, (match,p1)=>p1+'"')  // won't help much but try
+      .replace(/,\s*}/, '}')   // trailing comma
+      .replace(/:\s*([^",{\[\d\-truefalsn][^,}]*)/g, (_,v)=>`:"${v.trim()}"`) // unquoted string values
+    ;
+    try{ return JSON.parse(fixed); }catch(_){}
+
+    // 5. Regex extraction — most reliable fallback
+    const sc = s.match(/"?scored"?\s*:\s*(\d+(?:\.\d+)?)/);
+    const nt = s.match(/"?note"?\s*:\s*"([\s\S]+?)(?:"(?:\s*[,}]|$)|$)/);
+    if(sc){
+      return {
+        scored: Math.round(parseFloat(sc[1])),
+        note: nt ? nt[1].replace(/\\n/g,' ').trim() : ''
+      };
+    }
+
+    // 6. Just find any number in the response — last resort
+    const nums = s.match(/\b(\d+)\b/g);
+    if(nums){
+      const scored = parseInt(nums[0]);
+      if(scored >= 0 && scored <= q.max){
+        return { scored, note: s.replace(/[{}"\n]/g,' ').slice(0,200).trim() };
+      }
+    }
+
+    // 7. Give 0 and log the raw response as the note
+    return { scored: 0, note: 'AI response unclear: ' + s.slice(0,150) };
   }
 
   const ac=new AbortController();
-  const abortTimer=setTimeout(()=>ac.abort(), TIMEOUT*1000);
-
+  // Only the Cancel button aborts
+  const cancelBtn=document.getElementById('qstat_cancel_'+i);
+  if(cancelBtn) cancelBtn.onclick=()=>{ ac.abort(); clearInterval(timer); };
   try{
     let res;
     if(getProv()==='ollama'){
       setStatus('Sending to Ollama…','Connecting to local model');
-      const ollamaPrompt=`Grade this student answer image fairly.
+      const ollamaPrompt = qAnswer
+        ? `You are grading a student's handwritten exam answer. Follow these instructions EXACTLY — they override everything else.
 
-Question Q${q.num}${q.desc?' ('+q.desc+')':''}: max ${q.max} points.
+Q${q.num}${q.desc?' ('+q.desc+')':''}: max ${q.max} points.
+
+GRADING INSTRUCTIONS:
+${qAnswer}
+
+Look at the student's answer. Apply the instructions above exactly as written.
+Write 1-2 sentences: what you saw in the answer and why you gave that score.
+
+Reply with ONLY this JSON (no other text):
+{"scored":<integer 0-${q.max}>,"note":"<1-2 sentences>"}`
+        : `Grade this student's handwritten answer.
+
+Q${q.num}${q.desc?' ('+q.desc+')':''}: max ${q.max} points.
 ${criteria?`Grading criteria: ${criteria}\n`:''}
-
-Scoring rules:
-- Full marks if fully correct.
-- Partial credit proportionally for partially correct (e.g. correct answer wrong method = 60-80%).
-- 0 only if completely wrong or blank.
-- Do NOT be overly strict.
+Give full marks if correct, partial credit if partially correct, 0 if blank or wrong.
+Write 1-2 sentences explaining the score.
 
 Reply with ONLY this JSON:
-{"scored": <integer 0-${q.max}>, "note": "<2-3 sentences: what was correct, what was wrong, one suggestion>"}`;
-      const r=await fetch(getOUrl()+'/api/generate',{
+{"scored":<integer 0-${q.max}>,"note":"<1-2 sentences>"}`;      const r=await fetch(getOUrl()+'/api/generate',{
         method:'POST', signal:ac.signal,
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({model:getOMdl(),stream:false,prompt:ollamaPrompt,images:[b64]})
@@ -1135,13 +1192,14 @@ Reply with ONLY this JSON:
       if(d.error)throw new Error(d.error.message);
       res=extractJSON(d.content.map(c=>c.text||'').join(''));
     }
-    clearInterval(timer); clearTimeout(abortTimer);
+    clearInterval(timer);
     sheetState[i].scored=Math.min(q.max,Math.max(0,Math.round(Number(res.scored))||0));
     sheetState[i].note=res.note||'';
     sheetState[i].done=true;
   }catch(err){
-    clearInterval(timer); clearTimeout(abortTimer);
-    const msg=err.name==='AbortError'?`Timed out after ${TIMEOUT}s — try a smaller/clearer image, or enter score manually`:err.message;
+    clearInterval(timer);
+    const msg = err.name==='AbortError' ? 'Cancelled — enter score manually above'
+      : err.message;
     toast('⚠️ Q'+q.num+': '+msg);
     const statusEl=document.getElementById('qstat_'+i);
     if(statusEl) statusEl.innerHTML=`<div style="margin-top:7px;padding:8px 11px;background:var(--rdl);border-radius:8px;font-size:12px;color:var(--red)">⚠️ ${msg}</div>`;
@@ -1180,7 +1238,7 @@ async function finalizeSheet(name, clsId, clsName){
 
   if(btn){btn.disabled=true; btn.innerHTML='<span class="spinner spinner-w"></span> Generating AI feedback…';}
 
-  const qScores=sheetState.map(q=>({num:q.num,desc:q.desc,max:q.max,scored:q.done?(q.scored||0):0,note:q.note||'',graded:q.done}));
+  const qScores=sheetState.map((q,i)=>({num:q.num,desc:q.desc,max:q.max,scored:q.done?(q.scored||0):0,note:q.note||'',answer:document.getElementById('ans_'+i)?.value.trim()||q.answer||'',graded:q.done}));
   const totalScored=qScores.reduce((s,q)=>s+q.scored,0);
 
   // Show progress in sheet
@@ -1204,13 +1262,13 @@ JSON only: {"strengths":["...","..."],"improvements":["...","..."],"teacherComme
       let res;
       if(getProv()==='ollama'){
         const r=await fetch(getOUrl()+'/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:getOMdl(),stream:false,prompt:p})});
-        const d=await r.json(); res=JSON.parse((d.response||'{}').replace(/```json|```/g,'').trim());
+        const d=await r.json(); try{ res=JSON.parse((d.response||'{}').replace(/```json|```/g,'').trim()); }catch(_){ res={}; }
       }else{
         const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
           headers:{'Content-Type':'application/json','x-api-key':getKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
           body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,messages:[{role:'user',content:[{type:'text',text:p}]}]})});
         const d=await r.json(); if(d.error)throw new Error(d.error.message);
-        res=JSON.parse(d.content.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim());
+        try{ res=JSON.parse(d.content.map(c=>c.text||'').join('').replace(/```json|```/g,'').trim()); }catch(_){ res={}; }
       }
       if(!str.length) str=res.strengths||[];
       if(!imp.length) imp=res.improvements||[];
@@ -1236,10 +1294,6 @@ JSON only: {"strengths":["...","..."],"improvements":["...","..."],"teacherComme
   toast(`✅ ${name} — Grade ${grade} (${totalScored}/${exam.total})`);
 }
 
-// helpers
-function calcGrade(scored,th){
-  if(scored>=th.A)return'A';if(scored>=th.B)return'B';if(scored>=th.C)return'C';if(scored>=th.D)return'D';if(scored>=th.E)return'E';return'F';
-}
 
 // ─── stubs for any remaining old references ───
 function setStep(){}

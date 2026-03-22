@@ -68,6 +68,6 @@ python -m http.server 8000
 
 ---
 
-## 📌 That’s it!
+## 📌 That’s it! Recommended Ollama model is qwen3-vl:30b.
 
 You’re ready to use GradeAI locally 🎉
