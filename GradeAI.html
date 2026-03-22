@@ -207,38 +207,12 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{-webkit-appear
     <button class="ntab" data-page="classes"  onclick="goPage('classes')">🏫 Classes <span class="tbadge" id="bc">0</span></button>
     <button class="ntab" data-page="grade"    onclick="goPage('grade')">✦ Grade</button>
     <button class="ntab" data-page="results"  onclick="goPage('results')">📊 Results <span class="tbadge" id="br">0</span></button>
+    <button class="ntab" data-page="ai"       onclick="goPage('ai')">🤖 AI Settings</button>
   </div>
   <div class="nright">
-    <button class="ndbtn ndbtn-s" onclick="exportJSON()" title="Save to file (overwrites same file each time)">💾 Save</button>
-    <button class="ndbtn ndbtn-g" onclick="document.getElementById('impFile').click()" title="Load a previously saved JSON file">📂 Load</button>
+    <button class="ndbtn ndbtn-s" onclick="exportJSON()" title="Save to file">💾 Save</button>
+    <button class="ndbtn ndbtn-g" onclick="document.getElementById('impFile').click()" title="Load JSON">📂 Load</button>
     <input type="file" id="impFile" accept=".json" style="display:none" onchange="importJSON(event)"/>
-    <button class="ndbtn ndbtn-k" onclick="toggleKeyBar()">🔑 AI</button>
-  </div>
-  <!-- Key bar -->
-  <div class="keybar" id="keyBar">
-    <span style="font-size:11px;color:rgba(255,255,255,.8);font-weight:700">Provider:</span>
-    <div style="display:flex;gap:3px;background:rgba(0,0,0,.2);border-radius:6px;padding:3px">
-      <button class="prov-btn" id="pAnt" onclick="setProvider('anthropic')" style="background:var(--acc);color:#fff">☁ Anthropic</button>
-      <button class="prov-btn" id="pOll" onclick="setProvider('ollama')" style="background:transparent;color:rgba(255,255,255,.6)">🦙 Ollama</button>
-    </div>
-    <div id="antFields" style="display:flex;align-items:center;gap:7px">
-      <input id="apiKey" type="password" placeholder="sk-ant-api03-..." oninput="saveKey()"
-        style="width:270px;background:rgba(255,255,255,.12)!important;color:#fff!important;border:1px solid rgba(255,255,255,.3)!important;border-radius:7px;padding:6px 10px;font-family:monospace;font-size:12px;outline:none"/>
-      <a href="https://console.anthropic.com" target="_blank" style="color:var(--gld);font-size:11px;white-space:nowrap">Get key →</a>
-    </div>
-    <div id="ollFields" style="display:none;align-items:center;gap:10px;flex-wrap:wrap">
-      <div style="display:flex;flex-direction:column;gap:3px">
-        <span style="font-size:10px;color:rgba(255,255,255,.6);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Ollama URL</span>
-        <input id="ollUrl" oninput="saveOll()" style="width:200px;background:rgba(255,255,255,.12)!important;color:#fff!important;border:1px solid rgba(255,255,255,.3)!important;border-radius:7px;padding:6px 10px;font-family:monospace;font-size:12px;outline:none"/>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:3px">
-        <span style="font-size:10px;color:rgba(255,255,255,.6);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Vision Model</span>
-        <input id="ollModel" oninput="saveOll()" style="width:150px;background:rgba(255,255,255,.12)!important;color:#fff!important;border:1px solid rgba(255,255,255,.3)!important;border-radius:7px;padding:6px 10px;font-family:monospace;font-size:12px;outline:none"/>
-      </div>
-      <span style="font-size:10px;color:rgba(255,255,255,.4);max-width:160px;line-height:1.5">Ollama must be running locally. Use a vision model (llava, llama3.2-vision, minicpm-v…)</span>
-    </div>
-    <span id="keyStatus" style="font-size:11px;font-weight:700;margin-left:auto"></span>
-    <button onclick="toggleKeyBar()" style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:16px;padding:0 4px">✕</button>
   </div>
   <div class="dbbar" id="dbBar">
     <span id="dbInfo">0 exams · 0 classes · 0 results</span>
@@ -247,7 +221,7 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{-webkit-appear
 </div>
 </nav>
 
-<div id="noKeyBanner">⚠️ <b>No API key set.</b> Click <b>🔑 AI</b> in the nav bar and enter your Anthropic API key. &nbsp;<a href="https://console.anthropic.com" target="_blank" style="color:var(--gld);font-weight:700">Get a key →</a></div>
+<div id="noKeyBanner">⚠️ <b>No API key set.</b> Go to <b>🤖 AI Settings</b> and enter your Anthropic API key. &nbsp;<a href="https://console.anthropic.com" target="_blank" style="color:var(--gld);font-weight:700">Get a key →</a></div>
 
 <!-- ════════════ EXAMS PAGE ════════════ -->
 <div class="page on" id="page-exams">
@@ -395,6 +369,82 @@ input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{-webkit-appear
   </div>
 </div>
 
+<!-- ════════════ AI SETTINGS PAGE ════════════ -->
+<div class="page" id="page-ai">
+  <div class="ph"><h1>🤖 AI Settings</h1><p>Configure your AI provider. All data stays on your device — nothing is shared with third parties.</p></div>
+  <div class="g2" style="align-items:start">
+
+    <!-- Provider selector -->
+    <div class="card">
+      <div class="ch"><div class="ci ci-b">⚡</div><div><div class="cht">Provider</div><div class="chs">Choose how AI grades your exams</div></div></div>
+      <div class="cb">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+          <div id="provCardAnt" onclick="setProvider('anthropic')" style="border:2px solid var(--acc);border-radius:11px;padding:16px;cursor:pointer;background:var(--acl);transition:all .15s">
+            <div style="font-size:22px;margin-bottom:8px">☁</div>
+            <div style="font-weight:700;font-size:15px;margin-bottom:4px">Anthropic</div>
+            <div style="font-size:12px;color:var(--mut);line-height:1.5">Cloud API. Best quality, fast. Requires an API key. Data sent to Anthropic servers.</div>
+          </div>
+          <div id="provCardOll" onclick="setProvider('ollama')" style="border:2px solid var(--bor);border-radius:11px;padding:16px;cursor:pointer;background:var(--su2);transition:all .15s">
+            <div style="font-size:22px;margin-bottom:8px">🦙</div>
+            <div style="font-weight:700;font-size:15px;margin-bottom:4px">Ollama</div>
+            <div style="font-size:12px;color:var(--mut);line-height:1.5">Local AI. 100% private — nothing leaves your machine. Requires Ollama running locally.</div>
+          </div>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:var(--acc)" id="aiProvStatus"></div>
+      </div>
+    </div>
+
+    <!-- Provider config -->
+    <div class="card">
+      <!-- Anthropic config -->
+      <div id="antConfig">
+        <div class="ch"><div class="ci ci-b">🔑</div><div><div class="cht">Anthropic API Key</div></div></div>
+        <div class="cb">
+          <div class="fg">
+            <label class="lbl">API Key</label>
+            <input id="apiKey" type="password" placeholder="sk-ant-api03-…" oninput="saveKey()"
+              style="font-family:monospace"/>
+            <div style="font-size:11px;color:var(--mut);margin-top:5px">
+              <a href="https://console.anthropic.com" target="_blank" style="color:var(--acc)">Get your API key at console.anthropic.com →</a>
+            </div>
+          </div>
+          <div style="padding:10px 14px;border-radius:9px;font-size:13px;margin-top:4px" id="antKeyStatus"></div>
+          <div style="font-size:12px;color:var(--mut);padding:10px;background:var(--su2);border-radius:8px;line-height:1.6;margin-top:4px">
+            🔒 Your key is stored only in your browser's localStorage. It is never sent anywhere except directly to Anthropic's API when you grade.
+          </div>
+        </div>
+      </div>
+
+      <!-- Ollama config -->
+      <div id="ollConfig" style="display:none">
+        <div class="ch"><div class="ci ci-g">🦙</div><div><div class="cht">Ollama Settings</div></div></div>
+        <div class="cb">
+          <div class="g2">
+            <div class="fg">
+              <label class="lbl">Ollama URL</label>
+              <input id="ollUrl" oninput="saveOll()" placeholder="http://localhost:11434" style="font-family:monospace"/>
+            </div>
+            <div class="fg">
+              <label class="lbl">Vision Model</label>
+              <select id="ollModelSel" onchange="document.getElementById('ollModel').value=this.value;saveOll()" style="color-scheme:light dark;margin-bottom:5px">
+                <option value="">— click Test & Detect first —</option>
+              </select>
+              <input id="ollModel" oninput="saveOll()" placeholder="or type model name manually" style="font-family:monospace;font-size:12px"/>
+            </div>
+          </div>
+          <button class="btn bp bfull" onclick="testOllama()" id="ollTestBtn" style="margin-top:4px">🔍 Test Connection &amp; Detect Models</button>
+          <div id="ollStatus" style="margin-top:10px;font-size:13px;min-height:20px"></div>
+          <div style="font-size:12px;color:var(--mut);padding:10px;background:var(--su2);border-radius:8px;line-height:1.6;margin-top:8px">
+            🔒 100% private — AI runs on your own machine. Nothing is uploaded to the internet.<br/>
+            Run <code style="background:var(--bor);padding:1px 5px;border-radius:4px">ollama serve</code> in terminal first, then Test Connection.<br/>
+            Recommended models: <code style="background:var(--bor);padding:1px 5px;border-radius:4px">llama3.2-vision</code>, <code style="background:var(--bor);padding:1px 5px;border-radius:4px">minicpm-v</code>, <code style="background:var(--bor);padding:1px 5px;border-radius:4px">llava</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ════════════ RESULTS PAGE ════════════ -->
 <div class="page" id="page-results">
   <div class="ph"><h1>📊 Results</h1><p>All graded students across all exams and classes.</p></div>
@@ -472,6 +522,23 @@ function goPage(id){
   document.querySelector(`.ntab[data-page="${id}"]`)?.classList.add('on');
   if(id==='grade')  fillGradeDrops();
   if(id==='results') renderResults();
+  if(id==='ai'){
+    // Populate fields from stored values
+    const apiKeyEl=document.getElementById('apiKey');
+    const ollUrlEl=document.getElementById('ollUrl');
+    const ollMdlEl=document.getElementById('ollModel');
+    const ollSelEl=document.getElementById('ollModelSel');
+    if(apiKeyEl) apiKeyEl.value=getKey();
+    if(ollUrlEl) ollUrlEl.value=getOUrl();
+    if(ollMdlEl) ollMdlEl.value=getOMdl();
+    const saved=getOMdl();
+    if(ollSelEl&&saved&&!ollSelEl.querySelector(`option[value="${saved}"]`)){
+      const opt=document.createElement('option');
+      opt.value=saved; opt.textContent=saved; opt.selected=true;
+      ollSelEl.appendChild(opt);
+    } else if(ollSelEl&&saved) ollSelEl.value=saved;
+    setProvider(getProv());
+  }
   updateDBBar();
 }
 
@@ -555,34 +622,104 @@ function importJSON(e){
 // ═══════════════════════════════════════════════════════════
 const getKey   = ()=>localStorage.getItem('gai_key')||'';
 const getOUrl  = ()=>localStorage.getItem('gai_ourl')||'http://localhost:11434';
-const getOMdl  = ()=>localStorage.getItem('gai_omdl')||'llava:latest';
+const getOMdl  = ()=>{
+  const sel=document.getElementById('ollModelSel');
+  const selVal=sel&&sel.value?sel.value:'';
+  return selVal||document.getElementById('ollModel')?.value.trim()||localStorage.getItem('gai_omdl')||'llava:latest';
+};
 const getProv  = ()=>localStorage.getItem('gai_prov')||'anthropic';
 function saveKey(){ localStorage.setItem('gai_key', document.getElementById('apiKey').value.trim()); updateKeyStatus(); }
 function saveOll(){ localStorage.setItem('gai_ourl',document.getElementById('ollUrl').value.trim()); localStorage.setItem('gai_omdl',document.getElementById('ollModel').value.trim()); updateKeyStatus(); }
 function setProvider(p){
   localStorage.setItem('gai_prov',p);
-  document.getElementById('pAnt').style.background = p==='anthropic'?'var(--acc)':'transparent';
-  document.getElementById('pAnt').style.color      = p==='anthropic'?'#fff':'rgba(255,255,255,.6)';
-  document.getElementById('pOll').style.background = p==='ollama'?'#4a6e1a':'transparent';
-  document.getElementById('pOll').style.color      = p==='ollama'?'#fff':'rgba(255,255,255,.6)';
-  document.getElementById('antFields').style.display = p==='anthropic'?'flex':'none';
-  document.getElementById('ollFields').style.display = p==='ollama'?'flex':'none';
+  // Provider cards (AI settings page)
+  const cardAnt=document.getElementById('provCardAnt');
+  const cardOll=document.getElementById('provCardOll');
+  if(cardAnt){ cardAnt.style.border=p==='anthropic'?'2px solid var(--acc)':'2px solid var(--bor)'; cardAnt.style.background=p==='anthropic'?'var(--acl)':'var(--su2)'; }
+  if(cardOll){ cardOll.style.border=p==='ollama'?'2px solid var(--grn)':'2px solid var(--bor)'; cardOll.style.background=p==='ollama'?'var(--grl)':'var(--su2)'; }
+  // Config panels
+  const ac=document.getElementById('antConfig'), oc=document.getElementById('ollConfig');
+  if(ac) ac.style.display=p==='anthropic'?'block':'none';
+  if(oc) oc.style.display=p==='ollama'?'block':'none';
   updateKeyStatus();
 }
 function updateKeyStatus(){
-  const p=getProv(), st=document.getElementById('keyStatus'), bn=document.getElementById('noKeyBanner');
-  if(p==='ollama'){ st.textContent='🦙 Ollama active'; st.style.color='#7fffb0'; bn.style.display='none'; return; }
+  const p=getProv(), bn=document.getElementById('noKeyBanner');
+  const st=document.getElementById('aiProvStatus');
+  const antSt=document.getElementById('antKeyStatus');
+  if(p==='ollama'){
+    if(bn) bn.style.display='none';
+    if(st) st.textContent='🦙 Ollama selected — click Test Connection to verify';
+    return;
+  }
   const k=getKey();
-  if(k.startsWith('sk-ant-')){ st.textContent='✅ Key saved'; st.style.color='#7fffb0'; bn.style.display='none'; }
-  else if(k){ st.textContent='⚠️ Key looks wrong'; st.style.color='#ffcc55'; bn.style.display='block'; }
-  else { st.textContent=''; bn.style.display='block'; }
+  if(k.startsWith('sk-ant-')){
+    if(bn) bn.style.display='none';
+    if(st){ st.textContent='✅ Anthropic — API key saved'; st.style.color='var(--grn)'; }
+    if(antSt){ antSt.textContent='✅ Key saved and looks valid'; antSt.style.background='var(--grl)'; antSt.style.color='var(--grn)'; }
+  } else if(k){
+    if(bn) bn.style.display='block';
+    if(st){ st.textContent='⚠️ API key looks wrong'; st.style.color='var(--org)'; }
+    if(antSt){ antSt.textContent='⚠️ Key saved but doesn\'t look like a valid Anthropic key'; antSt.style.background='var(--ogl)'; antSt.style.color='var(--org)'; }
+  } else {
+    if(bn) bn.style.display='block';
+    if(st){ st.textContent=''; }
+    if(antSt){ antSt.textContent=''; antSt.style.background=''; }
+  }
 }
-function toggleKeyBar(){
-  const b=document.getElementById('keyBar');
-  const show=b.style.display==='flex';
-  b.style.display=show?'none':'flex';
-  if(!show){ document.getElementById('apiKey').value=getKey(); document.getElementById('ollUrl').value=getOUrl(); document.getElementById('ollModel').value=getOMdl(); setProvider(getProv()); }
+
+async function testOllama(){
+  const url=document.getElementById('ollUrl')?.value.trim()||getOUrl();
+  const st=document.getElementById('ollStatus');
+  const btn=document.getElementById('ollTestBtn');
+  const kst=document.getElementById('keyStatus');
+  if(btn){ btn.textContent='⏳ Testing…'; btn.disabled=true; }
+  if(st) st.textContent='';
+
+  try{
+    const r=await fetch(url+'/api/tags',{method:'GET',headers:{'Content-Type':'application/json'}});
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d=await r.json();
+    const models=(d.models||[]).map(m=>m.name||m.model||'').filter(Boolean);
+
+    // Fill select dropdown
+    const sel=document.getElementById('ollModelSel');
+    if(sel){
+      sel.innerHTML='<option value="">— select model —</option>'
+        + models.map(m=>`<option value="${m}">${m}</option>`).join('');
+    }
+
+    // Auto-select saved model or first vision model
+    const saved=getOMdl();
+    const vision=models.find(m=>m.match(/llava|vision|minicpm|moondream|llama3\.2/i));
+    const best=models.includes(saved)?saved:(vision||models[0]||'');
+    if(best){
+      document.getElementById('ollModel').value=best;
+      const sel=document.getElementById('ollModelSel');
+      if(sel) sel.value=best;
+      localStorage.setItem('gai_omdl',best);
+    }
+
+    if(models.length){
+      if(st) st.style.color='#7fffb0';
+      if(st) st.textContent=`✅ Connected — ${models.length} model(s) found`;
+      if(kst){ kst.textContent='✅ Ollama connected'; kst.style.color='#7fffb0'; }
+      document.getElementById('noKeyBanner').style.display='none';
+    } else {
+      if(st){ st.style.color='#ffcc55'; st.textContent='⚠️ Connected but no models installed'; }
+      if(kst){ kst.textContent='⚠️ No models'; kst.style.color='#ffcc55'; }
+    }
+  }catch(e){
+    const msg = e.message.includes('fetch')||e.message.includes('Failed')
+      ? 'Cannot reach Ollama — is it running? Try: ollama serve'
+      : e.message;
+    if(st){ st.style.color='#ff9999'; st.textContent='❌ '+msg; }
+    if(kst){ kst.textContent='❌ Ollama unreachable'; kst.style.color='#ff9999'; }
+  }
+  if(btn){ btn.textContent='🔍 Test & Detect'; btn.disabled=false; }
 }
+function toggleKeyBar(){ goPage('ai'); }
+
 
 // ═══════════════════════════════════════════════════════════
 // EXAMS
@@ -658,7 +795,7 @@ function cancelExamEdit(){
   ['eName','thEmin','thA','thB','thC','thD','thE','eCriteria'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';});
   document.getElementById('eDate').value=new Date().toISOString().slice(0,10);
   document.getElementById('thHint').textContent='Enter E minimum → thresholds auto-calculated. All values editable.';
-  qs=[]; addQ(); addQ(); addQ();
+  qs=[]; addQ();
 }
 function delExam(id){ if(!confirm('Delete this exam?'))return; DB.exams=DB.exams.filter(e=>e.id!==id); saveDB(); renderExams(); }
 function renderExams(){
